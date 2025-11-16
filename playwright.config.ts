@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
+  timeout: 120000, // Global timeout of 2 minutes
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -11,7 +12,8 @@ export default defineConfig({
         '--use-fake-device-for-media-stream',
         '--use-file-for-fake-video-capture=tests/assets/fake-video.mjpeg'
       ]
-    }
+    },
+    actionTimeout: 60000, // 1 minute timeout for actions
   },
 
   projects: [
@@ -20,10 +22,4 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-  },
 });
