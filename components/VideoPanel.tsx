@@ -4,8 +4,26 @@ import { detectFaces } from '../services/faceDetectorService';
 import { segment } from '../services/segmentationService';
 import { detectFaceLandmarks } from '../services/faceMeshService';
 import { drawConnectors } from '@mediapipe/drawing_utils';
-import { FACEMESH_TESSELATION } from '@mediapipe/face_mesh';
+import { FACEMESH_TESSELATION } from '@medipe/face_mesh';
 
+// Helper function to calculate aspect ratio-corrected dimensions
+const getDrawDimensions = (videoWidth: number, videoHeight: number, canvasWidth: number, canvasHeight: number) => {
+    const videoAspectRatio = videoWidth / videoHeight;
+    const canvasAspectRatio = canvasWidth / canvasHeight;
+    let drawWidth = canvasWidth;
+    let drawHeight = canvasHeight;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (canvasAspectRatio > videoAspectRatio) {
+        drawWidth = canvasHeight * videoAspectRatio;
+        offsetX = (canvasWidth - drawWidth) / 2;
+    } else {
+        drawHeight = canvasWidth / videoAspectRatio;
+        offsetY = (canvasHeight - drawHeight) / 2;
+    }
+    return { drawWidth, drawHeight, offsetX, offsetY };
+};
 
 interface VideoPanelProps {
   stream: MediaStream | null;
@@ -183,42 +201,11 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
             offscreenCtx.drawImage(tempCanvas, 0, 0, videoWidth, videoHeight);
         }
 
-        // Calculate aspect ratio to preserve it when drawing to display canvas
-        const displayAspectRatio = clientWidth / clientHeight;
-        const videoAspectRatio = videoWidth / videoHeight;
-
-        let drawWidth = clientWidth;
-        let drawHeight = clientHeight;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (displayAspectRatio > videoAspectRatio) {
-          drawWidth = clientHeight * videoAspectRatio;
-          offsetX = (clientWidth - drawWidth) / 2;
-        } else {
-          drawHeight = clientWidth / videoAspectRatio;
-          offsetY = (clientHeight - drawHeight) / 2;
-        }
+        const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
 
         displayCtx.drawImage(offscreenCanvas, offsetX, offsetY, drawWidth, drawHeight);
       } else {
-        // Calculate aspect ratio to preserve it when drawing to display canvas
-        const displayAspectRatio = clientWidth / clientHeight;
-        const videoAspectRatio = videoWidth / videoHeight;
-
-        let drawWidth = clientWidth;
-        let drawHeight = clientHeight;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (displayAspectRatio > videoAspectRatio) {
-          drawWidth = clientHeight * videoAspectRatio;
-          offsetX = (clientWidth - drawWidth) / 2;
-        } else {
-          drawHeight = clientWidth / videoAspectRatio;
-          offsetY = (clientHeight - drawHeight) / 2;
-        }
-
+        const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
         displayCtx.drawImage(videoElement, offsetX, offsetY, drawWidth, drawHeight);
       }
 
@@ -243,22 +230,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
 
           const landmarks = faceMeshRef.current;
 
-          // Calculate aspect ratio to properly scale face mesh features
-          const displayAspectRatio = clientWidth / clientHeight;
-          const videoAspectRatio = videoWidth / videoHeight;
-
-          let drawWidth = clientWidth;
-          let drawHeight = clientHeight;
-          let offsetX = 0;
-          let offsetY = 0;
-
-          if (displayAspectRatio > videoAspectRatio) {
-            drawWidth = clientHeight * videoAspectRatio;
-            offsetX = (clientWidth - drawWidth) / 2;
-          } else {
-            drawHeight = clientWidth / videoAspectRatio;
-            offsetY = (clientHeight - drawHeight) / 2;
-          }
+          const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
 
           const scaleX = drawWidth / videoWidth;
           const scaleY = drawHeight / videoHeight;
@@ -301,22 +273,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
       if (settings.portraitLighting > 0 && faceMeshRef.current) {
           const landmarks = faceMeshRef.current;
 
-          // Calculate aspect ratio to properly scale portrait lighting
-          const displayAspectRatio = clientWidth / clientHeight;
-          const videoAspectRatio = videoWidth / videoHeight;
-
-          let drawWidth = clientWidth;
-          let drawHeight = clientHeight;
-          let offsetX = 0;
-          let offsetY = 0;
-
-          if (displayAspectRatio > videoAspectRatio) {
-            drawWidth = clientHeight * videoAspectRatio;
-            offsetX = (clientWidth - drawWidth) / 2;
-          } else {
-            drawHeight = clientWidth / videoAspectRatio;
-            offsetY = (clientHeight - drawHeight) / 2;
-          }
+          const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
 
           const scaleX = drawWidth / videoWidth;
           const scaleY = drawHeight / videoHeight;
@@ -346,22 +303,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
       if(tempCtx) {
         tempCtx.clearRect(0,0,clientWidth, clientHeight);
 
-        // Calculate aspect ratio to properly apply geometric transforms
-        const displayAspectRatio = clientWidth / clientHeight;
-        const videoAspectRatio = videoWidth / videoHeight;
-
-        let drawWidth = clientWidth;
-        let drawHeight = clientHeight;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (displayAspectRatio > videoAspectRatio) {
-          drawWidth = clientHeight * videoAspectRatio;
-          offsetX = (clientWidth - drawWidth) / 2;
-        } else {
-          drawHeight = clientWidth / videoAspectRatio;
-          offsetY = (clientHeight - drawHeight) / 2;
-        }
+        const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
 
         // Draw the current content to temp canvas with proper aspect ratio
         tempCtx.drawImage(displayCanvas, offsetX, offsetY, drawWidth, drawHeight);
@@ -397,22 +339,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
                 overlayCtx.strokeStyle = 'rgba(7, 190, 248, 0.8)';
                 overlayCtx.lineWidth = 4;
 
-                // Calculate aspect ratio to properly scale face detection overlay
-                const displayAspectRatio = overlayCanvas.width / overlayCanvas.height;
-                const videoAspectRatio = videoWidth / videoHeight;
-
-                let drawWidth = overlayCanvas.width;
-                let drawHeight = overlayCanvas.height;
-                let offsetX = 0;
-                let offsetY = 0;
-
-                if (displayAspectRatio > videoAspectRatio) {
-                  drawWidth = overlayCanvas.height * videoAspectRatio;
-                  offsetX = (overlayCanvas.width - drawWidth) / 2;
-                } else {
-                  drawHeight = overlayCanvas.width / videoAspectRatio;
-                  offsetY = (overlayCanvas.height - drawHeight) / 2;
-                }
+                const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, overlayCanvas.width, overlayCanvas.height);
 
                 const scaleX = drawWidth / videoWidth;
                 const scaleY = drawHeight / videoHeight;

@@ -12,7 +12,7 @@ import { useToast } from '../contexts/ToastContext';
 import { initializeFaceDetector } from '../services/faceDetectorService';
 import { initializeSegmentation } from '../services/segmentationService';
 import { initializeFaceMesh } from '../services/faceMeshService';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Define this helper component here to avoid re-rendering issues
 const LoadingSpinner: React.FC<{text?: string}> = ({text = 'Starting camera...'}) => (
@@ -119,7 +119,7 @@ const WebcamApp: React.FC = () => {
         };
 
         initializeModels();
-    }, [addToast]);
+    }, []);
     
     
     const updateCurrentSettings = useCallback((newSettings: Partial<CameraSettings>) => {
@@ -134,39 +134,33 @@ const WebcamApp: React.FC = () => {
     }, [currentCameraId]);
 
     const handleGenerateBackground = async () => {
-      if (!aiPrompt.trim()) {
-        addToast("Please enter a prompt for the background.", "warning");
-        return;
-      }
-      setIsGeneratingBackground(true);
-      setBlurMode('none'); // AI background overrides blur
-      addToast("Generating AI background... this may take a moment.", "info");
-      try {
-        // Note: Using the correct Google GenAI API for text-based image generation
-        // The generateImages API might be from a different SDK or version
-        // For now, we'll simulate the API call with a placeholder response
-        // In a real implementation, you'd need to use the proper Google Image Generation API
-        addToast("Connecting to AI service...", "info");
-
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Placeholder: In a real implementation, this would be the actual image generation API
-        // The actual API would likely require a different package or direct API calls
-        // For now, generate a placeholder response
-
-        // Create a placeholder image using canvas or fetch from a mock endpoint
-        const mockImageUrl = `https://placehold.co/800x450?text=${encodeURIComponent(aiPrompt)}`;
-        setAiBackgroundUrl(mockImageUrl);
-        addToast("AI background generated successfully (using placeholder)!", "success");
-
-      } catch (err) {
-        console.error("AI background generation failed:", err);
-        addToast("Failed to generate background. Please try again.", "error");
-        setAiBackgroundUrl(null);
-      } finally {
-        setIsGeneratingBackground(false);
-      }
+        if (!aiPrompt.trim()) {
+            addToast("Please enter a prompt for the background.", "warning");
+            return;
+        }
+        setIsGeneratingBackground(true);
+        setBlurMode('none'); // AI background overrides blur
+        addToast("Generating AI background... this may take a moment.", "info");
+        try {
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                throw new Error("Gemini API key not found.");
+            }
+            addToast("Connecting to AI service...", "info");
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const result = await model.generateContent(aiPrompt);
+            const response = await result.response;
+            const text = response.text();
+            setAiBackgroundUrl(text);
+            addToast("AI background generated successfully!", "success");
+        } catch (err) {
+            console.error("AI background generation failed:", err);
+            addToast("Failed to generate background. Please try again.", "error");
+            setAiBackgroundUrl(null);
+        } finally {
+            setIsGeneratingBackground(false);
+        }
     };
 
     // FIX: This effect now safely applies settings by clamping them to the device's supported range.
