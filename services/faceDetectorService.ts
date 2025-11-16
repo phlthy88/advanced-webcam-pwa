@@ -1,43 +1,14 @@
-// This is a simplified version of the MediaPipe types needed for the service
-// In a real project, you might use a community-provided types package
-declare global {
-  interface Window {
-    FaceDetector: any;
-    FilesetResolver: any;
-  }
-}
+import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 
-// Re-declaring for module scope
-let FaceDetector: any;
-let FilesetResolver: any;
-
-let faceDetector: any;
+let faceDetector: FaceDetector;
 let isInitialized = false;
 
 export const initializeFaceDetector = async (): Promise<void> => {
   if (isInitialized) return;
 
   try {
-    // Wait for the MediaPipe objects to be available on the window
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        clearInterval(interval);
-        reject(new Error("Timeout waiting for MediaPipe objects"));
-      }, 10000); // 10 second timeout
-
-      const interval = setInterval(() => {
-        if (window.FaceDetector && window.FilesetResolver) {
-          FaceDetector = window.FaceDetector;
-          FilesetResolver = window.FilesetResolver;
-          clearInterval(interval);
-          clearTimeout(timeout);
-          resolve();
-        }
-      }, 100);
-    });
-
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
     );
 
     faceDetector = await FaceDetector.createFromOptions(vision, {
@@ -51,8 +22,8 @@ export const initializeFaceDetector = async (): Promise<void> => {
     isInitialized = true;
   } catch (error) {
     console.error("Failed to initialize face detector:", error);
-    // Don't throw error, just mark as initialized so the app doesn't stall
-    isInitialized = true;
+    // Re-throw the error to be caught by the calling component
+    throw error;
   }
 };
 
