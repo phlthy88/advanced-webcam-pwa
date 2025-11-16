@@ -1,0 +1,42 @@
+
+{
+  "short_name": "Webcam Controls",
+  "name": "Advanced Webcam Controls",
+  "description": "Professional camera settings and PTZ controls for your webcam.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay"],
+  "background_color": "#ffffff",
+  "theme_color": "#2196F3",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Selfie Mode",
+      "short_name": "Selfie",
+      "description": "Open the app with the camera mirrored",
+      "url": "/?mirror=true",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "name": "Webcam Settings File",
+      "accept": {
+        "application/json": [".json"]
+      }
+    }
+  ]
+}

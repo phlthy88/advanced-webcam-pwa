@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Copy of Advanced Webcam Controls PWA",
+  "description": "A Progressive Web App (PWA) that provides professional-grade camera controls and PTZ (Pan-Tilt-Zoom) functionality for webcams and cameras. Features include exposure, color, focus, PTZ, filters, and preset management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
