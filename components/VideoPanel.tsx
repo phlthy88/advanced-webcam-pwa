@@ -167,8 +167,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
         overlayCanvas.height = clientHeight;
         offscreenCanvas.width = videoWidth;
         offscreenCanvas.height = videoHeight;
-        tempCanvas.width = videoWidth;
-        tempCanvas.height = videoHeight;
+        tempCanvas.width = clientWidth;
+        tempCanvas.height = clientHeight;
       }
       
       const timestamp = videoElement.currentTime;
@@ -303,10 +303,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
       if(tempCtx) {
         tempCtx.clearRect(0,0,clientWidth, clientHeight);
 
-        const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
-
-        // Draw the current content to temp canvas with proper aspect ratio
-        tempCtx.drawImage(displayCanvas, offsetX, offsetY, drawWidth, drawHeight);
+        // FIX: Draw the *entire* current canvas to the temp canvas, not just the aspect-ratio-corrected part.
+        // This prevents a "shrinking" effect during transformations.
+        tempCtx.drawImage(displayCanvas, 0, 0, clientWidth, clientHeight);
 
         displayCtx.clearRect(0, 0, clientWidth, clientHeight);
         displayCtx.translate(clientWidth / 2, clientHeight / 2);
