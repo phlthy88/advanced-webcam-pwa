@@ -1,8 +1,19 @@
+/**
+ * Face Mesh Service
+ * Provides face landmark detection using MediaPipe FaceLandmarker.
+ * Used for face smoothing and portrait lighting effects.
+ */
+
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
-let faceLandmarker: FaceLandmarker;
+let faceLandmarker: FaceLandmarker | null = null;
 let isInitialized = false;
+let initializationError: Error | null = null;
 
+/**
+ * Initialize the face mesh model.
+ * Safe to call multiple times - will only initialize once.
+ */
 export const initializeFaceMesh = async (): Promise<void> => {
   if (isInitialized) return;
 
@@ -22,17 +33,60 @@ export const initializeFaceMesh = async (): Promise<void> => {
     });
 
     isInitialized = true;
+    initializationError = null;
   } catch (error) {
     console.error("Failed to initialize face mesh:", error);
-    // Re-throw the error to be caught by the calling component
+    initializationError = error instanceof Error ? error : new Error(String(error));
     throw error;
   }
 };
 
-export const detectFaceLandmarks = async (videoElement: HTMLVideoElement, timestamp: number) => {
+/**
+ * Detect face landmarks in a video frame.
+ * Returns null if detector is not initialized or detection fails.
+ */
+export const detectFaceLandmarks = async (
+  videoElement: HTMLVideoElement,
+  timestamp: number
+) => {
   if (!isInitialized || !faceLandmarker) {
-    console.warn("Face Landmarker is not initialized.");
+    if (!initializationError) {
+      console.warn("Face Landmarker is not initialized.");
+    }
     return null;
   }
-  return await faceLandmarker.detectForVideo(videoElement, timestamp);
+
+  try {
+    return await faceLandmarker.detectForVideo(videoElement, timestamp);
+  } catch (error) {
+    console.error("Face landmark detection failed:", error);
+    return null;
+  }
+};
+
+/**
+ * Check if face mesh is ready for use.
+ */
+export const isFaceMeshReady = (): boolean => {
+  return isInitialized && faceLandmarker !== null;
+};
+
+/**
+ * Get the initialization error if any.
+ */
+export const getFaceMeshError = (): Error | null => {
+  return initializationError;
+};
+
+/**
+ * Release resources and reset the face mesh model.
+ * Call this when the service is no longer needed.
+ */
+export const destroyFaceMesh = (): void => {
+  if (faceLandmarker) {
+    faceLandmarker.close();
+    faceLandmarker = null;
+  }
+  isInitialized = false;
+  initializationError = null;
 };

@@ -1,29 +1,21 @@
-import React, { useRef, useEffect } from 'react';
-import { CameraSettings, FaceDetection, ExtendedMediaTrackCapabilities } from '../types';
-import { detectFaces } from '../services/faceDetectorService';
-import { segment } from '../services/segmentationService';
-import { detectFaceLandmarks } from '../services/faceMeshService';
-import { drawConnectors } from '@mediapipe/drawing_utils';
-import { FACEMESH_TESSELATION } from '@medipe/face_mesh';
+/**
+ * VideoPanel Component
+ * Renders the video stream with AI effects, filters, and transformations.
+ * Uses modular utilities for better maintainability and fallback protection.
+ */
 
-// Helper function to calculate aspect ratio-corrected dimensions
-const getDrawDimensions = (videoWidth: number, videoHeight: number, canvasWidth: number, canvasHeight: number) => {
-    const videoAspectRatio = videoWidth / videoHeight;
-    const canvasAspectRatio = canvasWidth / canvasHeight;
-    let drawWidth = canvasWidth;
-    let drawHeight = canvasHeight;
-    let offsetX = 0;
-    let offsetY = 0;
+import React, { useRef, useEffect, useCallback } from 'react';
+import { CameraSettings, ExtendedMediaTrackCapabilities } from '../types';
+import { detectFaces, isFaceDetectorReady } from '../services/faceDetectorService';
+import { segment, isSegmentationReady } from '../services/segmentationService';
+import { detectFaceLandmarks, isFaceMeshReady } from '../services/faceMeshService';
+import { getDrawDimensions, setupCanvasDimensions } from '../utils/canvasUtils';
+import { buildFilter, BlurMode } from '../utils/filterUtils';
+import { FACE_LANDMARKS, TIMING, EFFECTS, FACE_TRACKING } from '../constants';
 
-    if (canvasAspectRatio > videoAspectRatio) {
-        drawWidth = canvasHeight * videoAspectRatio;
-        offsetX = (canvasWidth - drawWidth) / 2;
-    } else {
-        drawHeight = canvasWidth / videoAspectRatio;
-        offsetY = (canvasHeight - drawHeight) / 2;
-    }
-    return { drawWidth, drawHeight, offsetX, offsetY };
-};
+// Note: These imports are available for future mesh visualization features
+// import { drawConnectors } from '@mediapipe/drawing_utils';
+// import { FACEMESH_TESSELATION } from '@mediapipe/face_mesh';
 
 interface VideoPanelProps {
   stream: MediaStream | null;
@@ -31,7 +23,7 @@ interface VideoPanelProps {
   onSettingsChange: (newSettings: Partial<CameraSettings>) => void;
   isHardwareZoom: boolean;
   isFaceTrackingActive: boolean;
-  blurMode: 'none' | 'portrait' | 'full';
+  blurMode: BlurMode;
   aiBackgroundUrl: string | null;
   capabilities: ExtendedMediaTrackCapabilities | null;
 }
@@ -68,64 +60,105 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
     }
   }, [aiBackgroundUrl]);
 
-  // AI Segmentation Loop
+  // AI Segmentation Loop with fallback protection
   useEffect(() => {
     if (!stream || (blurMode === 'none' && !aiBackgroundUrl)) {
-        segmentationMaskRef.current = null; // Clear mask if not in use
-        return;
+      segmentationMaskRef.current = null;
+      return;
+    }
+
+    // Fallback: Skip if service not ready
+    if (!isSegmentationReady()) {
+      console.warn('Segmentation service not ready, skipping segmentation');
+      return;
     }
 
     const videoElement = videoRef.current;
     if (!videoElement) return;
 
-    let segmentationFrameId: number;
-    const segmentationLoop = async () => {
-        if (videoElement.paused || videoElement.ended) {
-            segmentationFrameId = setTimeout(segmentationLoop, 100);
-            return;
-        }
+    let segmentationTimeoutId: ReturnType<typeof setTimeout>;
+    let isActive = true;
 
+    const segmentationLoop = async () => {
+      if (!isActive) return;
+
+      if (videoElement.paused || videoElement.ended) {
+        segmentationTimeoutId = setTimeout(segmentationLoop, TIMING.SEGMENTATION_INTERVAL_MS);
+        return;
+      }
+
+      try {
         const mask = await segment(videoElement, videoElement.currentTime * 1000);
-        if (mask) {
-            segmentationMaskRef.current = mask;
+        if (mask && isActive) {
+          segmentationMaskRef.current = mask;
         }
-        
-        segmentationFrameId = setTimeout(segmentationLoop, 100);
+      } catch (error) {
+        console.error('Segmentation error:', error);
+      }
+
+      if (isActive) {
+        segmentationTimeoutId = setTimeout(segmentationLoop, TIMING.SEGMENTATION_INTERVAL_MS);
+      }
     };
 
     segmentationLoop();
 
     return () => {
-        clearTimeout(segmentationFrameId);
+      isActive = false;
+      clearTimeout(segmentationTimeoutId);
     };
   }, [stream, blurMode, aiBackgroundUrl]);
 
-  // AI Face Mesh Loop
+  // AI Face Mesh Loop with fallback protection
   useEffect(() => {
     if (!stream || settings.faceSmoothing === 0) {
-        faceMeshRef.current = null;
-        return;
+      faceMeshRef.current = null;
+      return;
     }
+
+    // Fallback: Skip if service not ready
+    if (!isFaceMeshReady()) {
+      console.warn('Face mesh service not ready, skipping face smoothing');
+      return;
+    }
+
     const videoElement = videoRef.current;
     if (!videoElement) return;
 
-    let faceMeshFrameId: number;
+    let faceMeshTimeoutId: ReturnType<typeof setTimeout>;
+    let isActive = true;
+
     const faceMeshLoop = async () => {
-        if (videoElement.paused || videoElement.ended) {
-            faceMeshFrameId = setTimeout(faceMeshLoop, 100);
-            return;
-        }
+      if (!isActive) return;
+
+      if (videoElement.paused || videoElement.ended) {
+        faceMeshTimeoutId = setTimeout(faceMeshLoop, TIMING.FACE_MESH_INTERVAL_MS);
+        return;
+      }
+
+      try {
         const results = await detectFaceLandmarks(videoElement, videoElement.currentTime * 1000);
-        if (results && results.faceLandmarks.length > 0) {
+        if (isActive) {
+          if (results && results.faceLandmarks.length > 0) {
             faceMeshRef.current = results.faceLandmarks[0];
-        } else {
+          } else {
             faceMeshRef.current = null;
+          }
         }
-        faceMeshFrameId = setTimeout(faceMeshLoop, 100);
+      } catch (error) {
+        console.error('Face mesh error:', error);
+      }
+
+      if (isActive) {
+        faceMeshTimeoutId = setTimeout(faceMeshLoop, TIMING.FACE_MESH_INTERVAL_MS);
+      }
     };
+
     faceMeshLoop();
+
     return () => {
-        clearTimeout(faceMeshFrameId);
+      isActive = false;
+      clearTimeout(faceMeshTimeoutId);
     };
   }, [stream, settings.faceSmoothing]);
 
@@ -147,7 +180,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
     if (!displayCtx || !offscreenCtx || !overlayCtx) return;
 
     let lastFaceDetectionTime = 0;
-    const faceDetectionInterval = 100; // ms
 
     const renderFrame = async () => {
       if (videoElement.paused || videoElement.ended || videoElement.videoWidth === 0) {
@@ -186,7 +218,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
           offscreenCtx.drawImage(backgroundImageRef.current, 0, 0, videoWidth, videoHeight);
         } else if (blurMode === 'portrait') {
           offscreenCtx.save();
-          offscreenCtx.filter = 'blur(8px)';
+          offscreenCtx.filter = `blur(${EFFECTS.PORTRAIT_BLUR_AMOUNT}px)`;
           offscreenCtx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
           offscreenCtx.restore();
         }
@@ -210,12 +242,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
       }
 
       // --- 2. APPLY AI & CREATIVE FILTERS ---
-      const baseFilter = getFilter();
-      let filterToApply = baseFilter;
-
-      if (settings.faceSmoothing > 0) {
-          filterToApply += ` blur(${settings.faceSmoothing / 15}px)`;
-      }
+      const filterToApply = settings.faceSmoothing > 0
+        ? getFilterWithSmoothing()
+        : getFilter();
       displayCtx.filter = filterToApply;
       
       // Redraw the blurred image on top of the original
@@ -235,27 +264,24 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
           const scaleX = drawWidth / videoWidth;
           const scaleY = drawHeight / videoHeight;
 
-          // Eyes and mouth clipping path
+          // Eyes and mouth clipping path using constants
           displayCtx.beginPath();
           // Left eye
-          const leftEye = [130, 133, 160, 159, 158, 144, 145, 153];
-          leftEye.forEach((p, i) => {
+          FACE_LANDMARKS.LEFT_EYE.forEach((p, i) => {
               const point = landmarks[p];
               if(i === 0) displayCtx.moveTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
               else displayCtx.lineTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
           });
           displayCtx.closePath();
           // Right eye
-          const rightEye = [359, 362, 387, 386, 385, 373, 374, 380];
-           rightEye.forEach((p, i) => {
+          FACE_LANDMARKS.RIGHT_EYE.forEach((p, i) => {
               const point = landmarks[p];
               if(i === 0) displayCtx.moveTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
               else displayCtx.lineTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
           });
           displayCtx.closePath();
           // Mouth
-          const mouth = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291];
-           mouth.forEach((p, i) => {
+          FACE_LANDMARKS.MOUTH.forEach((p, i) => {
               const point = landmarks[p];
               if(i === 0) displayCtx.moveTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
               else displayCtx.lineTo(offsetX + (point.x * drawWidth), offsetY + (point.y * drawHeight));
@@ -269,25 +295,24 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
           displayCtx.restore();
       }
 
-      // Portrait Lighting
+      // Portrait Lighting using face landmark constants
       if (settings.portraitLighting > 0 && faceMeshRef.current) {
           const landmarks = faceMeshRef.current;
 
           const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, clientWidth, clientHeight);
 
-          const scaleX = drawWidth / videoWidth;
-          const scaleY = drawHeight / videoHeight;
-
-          const nose = landmarks[1];
+          const nose = landmarks[FACE_LANDMARKS.NOSE_TIP];
           const noseX = offsetX + (nose.x * drawWidth);
           const noseY = offsetY + (nose.y * drawHeight);
-          const faceWidth = (landmarks[234].x - landmarks[454].x) * drawWidth;
+          const leftEdge = landmarks[FACE_LANDMARKS.LEFT_FACE_EDGE];
+          const rightEdge = landmarks[FACE_LANDMARKS.RIGHT_FACE_EDGE];
+          const faceWidth = (leftEdge.x - rightEdge.x) * drawWidth;
 
           const gradient = displayCtx.createRadialGradient(
               noseX, noseY, 0,
-              noseX, noseY, faceWidth * 1.2
+              noseX, noseY, faceWidth * EFFECTS.PORTRAIT_LIGHTING_RADIUS_MULTIPLIER
           );
-          gradient.addColorStop(0, `rgba(255, 255, 255, ${settings.portraitLighting / 250})`);
+          gradient.addColorStop(0, `rgba(255, 255, 255, ${settings.portraitLighting / EFFECTS.PORTRAIT_LIGHTING_DIVISOR})`);
           gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
           displayCtx.fillStyle = gradient;
@@ -325,66 +350,68 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
       displayCtx.restore();
       
 
-      // --- 4. FACE DETECTION AND OVERLAY ---
-      if (isFaceTrackingActive && timestamp > lastFaceDetectionTime + faceDetectionInterval) {
+      // --- 4. FACE DETECTION AND OVERLAY with fallback protection ---
+      const faceDetectionIntervalSec = TIMING.FACE_DETECTION_INTERVAL_MS / 1000;
+      if (isFaceTrackingActive && isFaceDetectorReady() && timestamp > lastFaceDetectionTime + faceDetectionIntervalSec) {
         lastFaceDetectionTime = timestamp;
-        const results = detectFaces(videoElement, timestamp * 1000);
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-        if (results && results.detections.length > 0) {
-            const largestFace = results.detections.sort((a,b) => (b.boundingBox?.width ?? 0) - (a.boundingBox?.width ?? 0))[0];
-            const { boundingBox } = largestFace;
-            if (boundingBox) {
-                overlayCtx.strokeStyle = 'rgba(7, 190, 248, 0.8)';
-                overlayCtx.lineWidth = 4;
+        try {
+          const results = detectFaces(videoElement, timestamp * 1000);
+          overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-                const { drawWidth, drawHeight, offsetX, offsetY } = getDrawDimensions(videoWidth, videoHeight, overlayCanvas.width, overlayCanvas.height);
+          if (results && results.detections.length > 0) {
+              const largestFace = results.detections.sort((a: any, b: any) => (b.boundingBox?.width ?? 0) - (a.boundingBox?.width ?? 0))[0];
+              const { boundingBox } = largestFace;
+              if (boundingBox) {
+                  overlayCtx.strokeStyle = 'rgba(7, 190, 248, 0.8)';
+                  overlayCtx.lineWidth = 4;
 
-                const scaleX = drawWidth / videoWidth;
-                const scaleY = drawHeight / videoHeight;
+                  const overlayDims = getDrawDimensions(videoWidth, videoHeight, overlayCanvas.width, overlayCanvas.height);
+                  const scaleX = overlayDims.drawWidth / videoWidth;
+                  const scaleY = overlayDims.drawHeight / videoHeight;
 
-                overlayCtx.strokeRect(
-                    offsetX + (boundingBox.originX * scaleX),
-                    offsetY + (boundingBox.originY * scaleY),
-                    boundingBox.width * scaleX,
-                    boundingBox.height * scaleY
-                );
-                
-                const SMOOTHING_FACTOR = 0.08;
-                const TARGET_FACE_HEIGHT_RATIO = 0.4;
-                const PAN_TILT_SENSITIVITY = 0.4;
-                
-                const targetHeight = videoHeight * TARGET_FACE_HEIGHT_RATIO;
-                const heightError = targetHeight - boundingBox.height;
-                let targetZoom = settings.zoom + (heightError * 0.1);
+                  overlayCtx.strokeRect(
+                      overlayDims.offsetX + (boundingBox.originX * scaleX),
+                      overlayDims.offsetY + (boundingBox.originY * scaleY),
+                      boundingBox.width * scaleX,
+                      boundingBox.height * scaleY
+                  );
 
-                if (isHardwareZoom && capabilities?.zoom) {
-                    targetZoom = (settings.zoom / 100) + (heightError * 0.005);
-                    targetZoom = Math.max(capabilities.zoom.min, Math.min(capabilities.zoom.max, targetZoom)) * 100;
-                } else {
-                    targetZoom = Math.max(100, Math.min(400, targetZoom));
-                }
+                  // Use face tracking constants for calculations
+                  const targetHeight = videoHeight * FACE_TRACKING.TARGET_FACE_HEIGHT_RATIO;
+                  const heightError = targetHeight - boundingBox.height;
+                  let targetZoom = settings.zoom + (heightError * FACE_TRACKING.ZOOM_ADJUSTMENT_FACTOR);
 
-                const faceCenterX = boundingBox.originX + boundingBox.width / 2;
-                const errorX = faceCenterX - videoWidth / 2;
-                let targetPan = settings.pan - (errorX / videoWidth) * 180 * PAN_TILT_SENSITIVITY;
-                targetPan = Math.max(-180, Math.min(180, targetPan));
+                  if (isHardwareZoom && capabilities?.zoom) {
+                      targetZoom = (settings.zoom / 100) + (heightError * FACE_TRACKING.HARDWARE_ZOOM_ADJUSTMENT_FACTOR);
+                      targetZoom = Math.max(capabilities.zoom.min, Math.min(capabilities.zoom.max, targetZoom)) * 100;
+                  } else {
+                      targetZoom = Math.max(FACE_TRACKING.MIN_ZOOM, Math.min(FACE_TRACKING.MAX_ZOOM, targetZoom));
+                  }
 
-                const faceCenterY = boundingBox.originY + boundingBox.height / 2;
-                const errorY = faceCenterY - videoHeight / 2;
-                let targetTilt = settings.tilt + (errorY / videoHeight) * 90 * PAN_TILT_SENSITIVITY;
-                targetTilt = Math.max(-90, Math.min(90, targetTilt));
-                
-                onSettingsChange({
-                    pan: settings.pan + (targetPan - settings.pan) * SMOOTHING_FACTOR,
-                    tilt: settings.tilt + (targetTilt - settings.tilt) * SMOOTHING_FACTOR,
-                    zoom: settings.zoom + (targetZoom - settings.zoom) * SMOOTHING_FACTOR,
-                });
-            }
+                  const faceCenterX = boundingBox.originX + boundingBox.width / 2;
+                  const errorX = faceCenterX - videoWidth / 2;
+                  let targetPan = settings.pan - (errorX / videoWidth) * 180 * FACE_TRACKING.PAN_TILT_SENSITIVITY;
+                  targetPan = Math.max(FACE_TRACKING.PAN_MIN, Math.min(FACE_TRACKING.PAN_MAX, targetPan));
+
+                  const faceCenterY = boundingBox.originY + boundingBox.height / 2;
+                  const errorY = faceCenterY - videoHeight / 2;
+                  let targetTilt = settings.tilt + (errorY / videoHeight) * 90 * FACE_TRACKING.PAN_TILT_SENSITIVITY;
+                  targetTilt = Math.max(FACE_TRACKING.TILT_MIN, Math.min(FACE_TRACKING.TILT_MAX, targetTilt));
+
+                  onSettingsChange({
+                      pan: settings.pan + (targetPan - settings.pan) * FACE_TRACKING.SMOOTHING_FACTOR,
+                      tilt: settings.tilt + (targetTilt - settings.tilt) * FACE_TRACKING.SMOOTHING_FACTOR,
+                      zoom: settings.zoom + (targetZoom - settings.zoom) * FACE_TRACKING.SMOOTHING_FACTOR,
+                  });
+              }
+          }
+        } catch (error) {
+          console.error('Face detection error:', error);
         }
-    } else if (!isFaceTrackingActive) {
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    }
+      } else if (!isFaceTrackingActive) {
+          overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
 
       renderFrameRef.current = requestAnimationFrame(renderFrame);
     };
@@ -409,24 +436,20 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ stream, settings, onSettingsCha
     }
   };
   
-  const getFilter = () => {
-     let filter = `hue-rotate(${settings.hue}deg) `;
-     switch (settings.filter) {
-        case 'grayscale': filter += 'grayscale(100%) '; break;
-        case 'sepia': filter += 'sepia(100%) '; break;
-        case 'invert': filter += 'invert(100%) '; break;
-        case 'posterize': filter += 'contrast(250%) saturate(200%) '; break;
-        case 'aqua': filter += 'sepia(50%) hue-rotate(180deg) saturate(200%) '; break;
-        case 'blackboard': filter += 'contrast(150%) brightness(120%) grayscale(100%) invert(100%) '; break;
-        case 'whiteboard': filter += 'contrast(200%) brightness(110%) grayscale(100%) '; break;
+  // Use modular filter utility for filter generation
+  const getFilter = useCallback(() => {
+    return buildFilter(settings, blurMode);
+  }, [settings, blurMode]);
+
+  // Build filter with face smoothing
+  const getFilterWithSmoothing = useCallback(() => {
+    const baseFilter = buildFilter(settings, blurMode);
+    if (settings.faceSmoothing > 0) {
+      const smoothBlur = settings.faceSmoothing / EFFECTS.FACE_SMOOTHING_DIVISOR;
+      return baseFilter === 'none' ? `blur(${smoothBlur}px)` : `${baseFilter} blur(${smoothBlur}px)`;
     }
-    if (blurMode === 'full') {
-      filter += `blur(12px) `;
-    } else if (settings.blur > 0) {
-      filter += `blur(${settings.blur}px) `;
-    }
-    return filter.trim();
-  }
+    return baseFilter;
+  }, [settings, blurMode]);
 
   return (
     <div className="flex flex-col gap-4">

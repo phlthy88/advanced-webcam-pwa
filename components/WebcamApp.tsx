@@ -1,6 +1,14 @@
+/**
+ * WebcamApp Component
+ * Main application component managing webcam state and UI orchestration.
+ * Uses modular hooks for theme, AI models, and settings management.
+ */
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useWebcam, getConstraintName } from '../hooks/useWebcam';
-import { CameraSettings, SettingsPreset, PtzPreset, FaceDetection, ExtendedMediaTrackCapabilities, MediaSettingsRange } from '../types';
+import { useTheme } from '../hooks/useTheme';
+import { useAIModels } from '../hooks/useAIModels';
+import { CameraSettings, SettingsPreset, PtzPreset, ExtendedMediaTrackCapabilities, MediaSettingsRange } from '../types';
 import { DEFAULT_SETTINGS, PTZ_PRESET_COUNT } from '../constants';
 import PermissionScreen from './PermissionScreen';
 import Header from './Header';
@@ -8,11 +16,10 @@ import StatusBar from './StatusBar';
 import VideoPanel from './VideoPanel';
 import ControlsPanel from './ControlsPanel';
 import ShortcutsModal from './ShortcutsModal';
+import { FeatureErrorBoundary } from './ErrorBoundary';
 import { useToast } from '../contexts/ToastContext';
-import { initializeFaceDetector } from '../services/faceDetectorService';
-import { initializeSegmentation } from '../services/segmentationService';
-import { initializeFaceMesh } from '../services/faceMeshService';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { BlurMode } from '../utils/filterUtils';
 
 // Define this helper component here to avoid re-rendering issues
 const LoadingSpinner: React.FC<{text?: string}> = ({text = 'Starting camera...'}) => (
@@ -24,19 +31,20 @@ const LoadingSpinner: React.FC<{text?: string}> = ({text = 'Starting camera...'}
 
 
 const WebcamApp: React.FC = () => {
+    // Use modular hooks for theme and AI model management
+    const { theme, toggleTheme } = useTheme();
+    const { isInitializing: isDetectorInitializing } = useAIModels();
+
     // A map to store settings for each camera deviceId
     const [settingsByCamera, setSettingsByCamera] = useState<Map<string, CameraSettings>>(new Map());
     const [isShortcutsVisible, setIsShortcutsVisible] = useState(false);
-    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
     const [isFaceTrackingActive, setIsFaceTrackingActive] = useState(false);
-    const [isDetectorInitializing, setIsDetectorInitializing] = useState(true);
 
     // AI & Effects State
-    const [blurMode, setBlurMode] = useState<'none' | 'portrait' | 'full'>('none');
+    const [blurMode, setBlurMode] = useState<BlurMode>('none');
     const [aiBackgroundUrl, setAiBackgroundUrl] = useState<string | null>(null);
     const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
     const [aiPrompt, setAiPrompt] = useState('A modern corner office with a city view at sunset');
-
 
     // All presets are managed here
     const [settingsPresets, setSettingsPresets] = useState<SettingsPreset[]>([]);
@@ -76,50 +84,7 @@ const WebcamApp: React.FC = () => {
         }
     }, [currentSettings, stream]);
 
-    
-    useEffect(() => {
-        const initializeModels = async () => {
-            setIsDetectorInitializing(true);
-            try {
-                // Initialize models sequentially to reduce initial resource load
-                // and prevent potential race conditions in constrained environments.
-
-                // Initialize each model with error handling to prevent complete failure
-                // if one model fails to load
-                try {
-                    await initializeFaceDetector();
-                    addToast("Face detector initialized", 'info');
-                } catch (err) {
-                    console.error("Failed to initialize face detector", err);
-                    addToast("Could not load face detector. Some features may be limited.", 'warning');
-                }
-
-                try {
-                    await initializeSegmentation();
-                    addToast("Segmentation model initialized", 'info');
-                } catch (err) {
-                    console.error("Failed to initialize segmentation", err);
-                    addToast("Could not load segmentation model. Some features may be limited.", 'warning');
-                }
-
-                try {
-                    await initializeFaceMesh();
-                    addToast("Face mesh model initialized", 'info');
-                } catch (err) {
-                    console.error("Failed to initialize face mesh", err);
-                    addToast("Could not load face mesh model. Some features may be limited.", 'warning');
-                }
-
-                setIsDetectorInitializing(false);
-            } catch (err) {
-                console.error("Failed to initialize AI models", err);
-                addToast("Could not load AI models. Some features will be limited.", 'error');
-                setIsDetectorInitializing(false);
-            }
-        };
-
-        initializeModels();
-    }, []);
+    // AI model initialization is now handled by useAIModels hook
     
     
     const updateCurrentSettings = useCallback((newSettings: Partial<CameraSettings>) => {
@@ -241,23 +206,7 @@ const WebcamApp: React.FC = () => {
         }
     }, [currentCameraId, settingsByCamera]);
 
-    useEffect(() => {
-        const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-        setTheme(initialTheme);
-    }, []);
-
-    useEffect(() => {
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-        localStorage.setItem('theme', theme);
-    }, [theme]);
-
-    const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    // Theme management is now handled by useTheme hook
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -311,40 +260,44 @@ const WebcamApp: React.FC = () => {
 
                       <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-[1fr_400px] gap-6 items-start">
                           <div className="lg:col-span-2 xl:col-span-1 lg:sticky lg:top-0">
-                               <VideoPanel 
-                                  stream={stream} 
-                                  settings={currentSettings} 
-                                  onSettingsChange={updateCurrentSettings}
-                                  isHardwareZoom={isHardwareControl('zoom')}
-                                  isFaceTrackingActive={isFaceTrackingActive}
-                                  blurMode={blurMode}
-                                  aiBackgroundUrl={aiBackgroundUrl}
-                                  capabilities={capabilities}
-                               />
+                              <FeatureErrorBoundary featureName="Video Preview">
+                                <VideoPanel
+                                    stream={stream}
+                                    settings={currentSettings}
+                                    onSettingsChange={updateCurrentSettings}
+                                    isHardwareZoom={isHardwareControl('zoom')}
+                                    isFaceTrackingActive={isFaceTrackingActive}
+                                    blurMode={blurMode}
+                                    aiBackgroundUrl={aiBackgroundUrl}
+                                    capabilities={capabilities}
+                                />
+                              </FeatureErrorBoundary>
                           </div>
                           <div className="lg:col-span-1 xl:col-span-1">
-                              <ControlsPanel
-                                  settings={currentSettings}
-                                  onSettingsChange={updateCurrentSettings}
-                                  capabilities={capabilities}
-                                  isHardwareControl={isHardwareControl}
-                                  stream={stream}
-                                  settingsPresets={settingsPresets}
-                                  setSettingsPresets={setSettingsPresets}
-                                  ptzPresets={ptzPresets}
-                                  setPtzPresets={setPtzPresets}
-                                  addToast={addToast}
-                                  isFaceTrackingActive={isFaceTrackingActive}
-                                  onToggleFaceTracking={() => setIsFaceTrackingActive(prev => !prev)}
-                                  blurMode={blurMode}
-                                  setBlurMode={setBlurMode}
-                                  aiBackgroundUrl={aiBackgroundUrl}
-                                  setAiBackgroundUrl={setAiBackgroundUrl}
-                                  isGeneratingBackground={isGeneratingBackground}
-                                  onGenerateBackground={handleGenerateBackground}
-                                  aiPrompt={aiPrompt}
-                                  setAiPrompt={setAiPrompt}
-                              />
+                              <FeatureErrorBoundary featureName="Controls Panel">
+                                <ControlsPanel
+                                    settings={currentSettings}
+                                    onSettingsChange={updateCurrentSettings}
+                                    capabilities={capabilities}
+                                    isHardwareControl={isHardwareControl}
+                                    stream={stream}
+                                    settingsPresets={settingsPresets}
+                                    setSettingsPresets={setSettingsPresets}
+                                    ptzPresets={ptzPresets}
+                                    setPtzPresets={setPtzPresets}
+                                    addToast={addToast}
+                                    isFaceTrackingActive={isFaceTrackingActive}
+                                    onToggleFaceTracking={() => setIsFaceTrackingActive(prev => !prev)}
+                                    blurMode={blurMode}
+                                    setBlurMode={setBlurMode}
+                                    aiBackgroundUrl={aiBackgroundUrl}
+                                    setAiBackgroundUrl={setAiBackgroundUrl}
+                                    isGeneratingBackground={isGeneratingBackground}
+                                    onGenerateBackground={handleGenerateBackground}
+                                    aiPrompt={aiPrompt}
+                                    setAiPrompt={setAiPrompt}
+                                />
+                              </FeatureErrorBoundary>
                           </div>
                       </div>
                   </div>
