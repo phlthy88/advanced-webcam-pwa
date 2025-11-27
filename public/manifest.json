@@ -1,42 +1,96 @@
 
 {
-  "short_name": "Webcam Controls",
-  "name": "Advanced Webcam Controls",
-  "description": "Professional camera settings and PTZ controls for your webcam.",
+  "short_name": "ChromeCam Studio",
+  "name": "ChromeCam Studio v2.0 - Professional Virtual Camera",
+  "description": "Professional webcam control studio with background effects, recording, audio visualization, and hardware controls. Transform your video calls and streaming setup.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "display_override": ["window-controls-overlay"],
-  "background_color": "#ffffff",
-  "theme_color": "#2196F3",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "categories": ["video", "productivity", "utilities"],
   "icons": [
     {
       "src": "icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-wide.png",
+      "type": "image/png",
+      "sizes": "1920x1080",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshot-mobile.png",
+      "type": "image/png",
+      "sizes": "750x1334",
+      "form_factor": "narrow"
     }
   ],
   "shortcuts": [
     {
-      "name": "Selfie Mode",
-      "short_name": "Selfie",
-      "description": "Open the app with the camera mirrored",
-      "url": "/?mirror=true",
+      "name": "Start Camera",
+      "short_name": "Camera",
+      "description": "Launch ChromeCam Studio",
+      "url": "/",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "OBS Output",
+      "short_name": "OBS",
+      "description": "Open OBS-compatible output window",
+      "url": "/?popout=true",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ],
+  "share_target": {
+    "action": "/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "background",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
   "file_handlers": [
     {
       "action": "/",
-      "name": "Webcam Settings File",
+      "name": "Background Image",
+      "accept": {
+        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+      }
+    },
+    {
+      "action": "/",
+      "name": "Settings File",
       "accept": {
         "application/json": [".json"]
       }
     }
-  ]
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+chromecam",
+      "url": "/?url=%s"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "iarc_rating_id": ""
 }

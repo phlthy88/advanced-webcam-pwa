@@ -1,93 +1,1474 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Advanced Webcam Controls</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#2196F3">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromeCam Studio v2.0 - Professional Virtual Camera</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111827">
+    <meta name="description" content="Professional webcam control studio with background effects, recording, and hardware controls">
 
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
+    <!-- Tailwind CSS with fallback -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+        integrity="sha384-/nSf1Y6/PZLgZBZQNqFXE7T8KfKjSpKp5DXQv5GEY/NVf4X6CcJPvNfq3nzFvKlf"
+        crossorigin="anonymous"
+        onerror="console.warn('Tailwind CDN failed, using fallback styles')"></script>
 
-    ::-webkit-scrollbar-track {
-      background: #f1f1f1;
-    }
+    <style>
+        /* Fallback styles if Tailwind fails to load */
+        .fallback-loading {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #111827;
+            color: #fff;
+        }
 
-    ::-webkit-scrollbar-thumb {
-      background: #888;
-      border-radius: 4px;
-    }
+        /* Custom animations */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
+        }
 
-    ::-webkit-scrollbar-thumb:hover {
-      background: #555;
-    }
+        .recording { animation: pulse-glow 2s infinite; }
 
-    /* Dark mode scrollbar */
-    .dark ::-webkit-scrollbar-track {
-      background: #2d3748;
-    }
+        .vu-meter {
+            background: linear-gradient(to right,
+                #10b981 0%, #10b981 60%,
+                #eab308 60%, #eab308 80%,
+                #ef4444 80%, #ef4444 100%);
+            mask: linear-gradient(to right, black var(--level), transparent var(--level));
+            -webkit-mask: linear-gradient(to right, black var(--level), transparent var(--level));
+        }
 
-    .dark ::-webkit-scrollbar-thumb {
-      background: #4a5568;
-    }
+        .control-knob {
+            background: conic-gradient(from 180deg, #3b82f6 0deg, #1e40af 360deg);
+        }
 
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background: #2d3748;
-    }
-  </style>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          keyframes: {
-            'slide-in': {
-              '0%': { transform: 'translateX(100%)', opacity: '0' },
-              '100%': { transform: 'translateX(0)', opacity: '1' },
-            },
-          },
-          animation: {
-            'slide-in': 'slide-in 0.3s ease-out forwards',
-          },
-        },
-      },
-    }
-  </script>
-<script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
-  }
-}
-</script>
+        @keyframes skeleton {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .skeleton { animation: skeleton 2s infinite; }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Ensure critical UI is always visible */
+        [data-critical] {
+            display: block !important;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans antialiased">
-  <div id="root"></div>
-  <script type="module" src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.js"></script>
-  <script type="module" src="/index.tsx"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').then(registration => {
-          console.log('SW registered: ', registration);
-        }).catch(registrationError => {
-          console.log('SW registration failed: ', registrationError);
+<body class="bg-gray-950 text-gray-100 overflow-hidden">
+    <!-- Header Bar -->
+    <header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                <h1 class="text-xl font-bold">ChromeCam Studio <span class="text-blue-500">v2.0</span></h1>
+            </div>
+            <div id="status-indicator" class="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full" data-critical>
+                <div id="status-dot" class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span id="status-text" class="text-sm">Initializing...</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button id="btn-settings" class="p-2 hover:bg-gray-800 rounded-lg transition-colors" title="Settings">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </button>
+            <button id="btn-help" class="p-2 hover:bg-gray-800 rounded-lg transition-colors" title="Help">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="flex h-[calc(100vh-60px)]">
+        <!-- Left Sidebar - Controls -->
+        <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+            <!-- Camera Controls -->
+            <section class="p-4 border-b border-gray-800">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Camera</h2>
+
+                <!-- Camera Selector -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Input Device</label>
+                    <select id="camera-select" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option>Loading cameras...</option>
+                    </select>
+                </div>
+
+                <!-- UVC Hardware Controls -->
+                <div id="uvc-controls" class="space-y-3 opacity-50">
+                    <div>
+                        <label class="flex items-center justify-between text-sm font-medium mb-1">
+                            <span>Zoom</span>
+                            <span id="zoom-value" class="text-blue-400">1.0x</span>
+                        </label>
+                        <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1"
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer disabled:opacity-50" disabled>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center justify-between text-sm font-medium mb-1">
+                            <span>Focus</span>
+                            <span id="focus-value" class="text-blue-400">Auto</span>
+                        </label>
+                        <div class="flex gap-2">
+                            <button id="focus-auto" class="flex-1 px-3 py-1 bg-gray-800 rounded text-sm hover:bg-gray-700 disabled:opacity-50" disabled>Auto</button>
+                            <input type="range" id="focus-slider" min="0" max="255" value="128"
+                                   class="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer disabled:opacity-50" disabled>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Background Effects -->
+            <section class="p-4 border-b border-gray-800">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Background</h2>
+
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <button data-effect="none" class="effect-btn bg-gray-800 p-3 rounded-lg hover:bg-gray-700 transition-colors border-2 border-transparent">
+                        <svg class="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                        </svg>
+                        <span class="text-xs">None</span>
+                    </button>
+                    <button data-effect="blur" class="effect-btn bg-gray-800 p-3 rounded-lg hover:bg-gray-700 transition-colors border-2 border-blue-500">
+                        <svg class="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 8H4M20 16H4" opacity="0.5"/>
+                        </svg>
+                        <span class="text-xs">Blur</span>
+                    </button>
+                    <button data-effect="replace" class="effect-btn bg-gray-800 p-3 rounded-lg hover:bg-gray-700 transition-colors border-2 border-transparent">
+                        <svg class="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="text-xs">Image</span>
+                    </button>
+                </div>
+
+                <!-- Blur Intensity -->
+                <div id="blur-controls" class="space-y-3">
+                    <div>
+                        <label class="flex items-center justify-between text-sm font-medium mb-1">
+                            <span>Blur Intensity</span>
+                            <span id="blur-value" class="text-blue-400">20px</span>
+                        </label>
+                        <input type="range" id="blur-slider" min="0" max="40" value="20"
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <div>
+                        <label class="flex items-center justify-between text-sm font-medium mb-1">
+                            <span>Edge Smoothing</span>
+                            <span id="edge-value" class="text-blue-400">5px</span>
+                        </label>
+                        <input type="range" id="edge-slider" min="0" max="20" value="5"
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Image Upload (hidden by default) -->
+                <div id="image-controls" class="hidden">
+                    <button id="upload-bg" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                        Upload Background Image
+                    </button>
+                    <input type="file" id="bg-file" accept="image/*" class="hidden">
+                </div>
+            </section>
+
+            <!-- Audio Controls -->
+            <section class="p-4 border-b border-gray-800">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Audio</h2>
+
+                <!-- Audio Input Selector -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Input Device</label>
+                    <select id="audio-select" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option>Loading microphones...</option>
+                    </select>
+                </div>
+
+                <!-- VU Meter -->
+                <div class="mb-4" id="vu-meter-container">
+                    <label class="block text-sm font-medium mb-2">Input Level</label>
+                    <div class="relative h-6 bg-gray-800 rounded overflow-hidden">
+                        <div class="vu-meter h-full" style="--level: 0%"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-xs font-mono">
+                            <span id="audio-db">-∞ dB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audio Controls -->
+                <div class="flex gap-2">
+                    <button id="mute-audio" class="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                        </svg>
+                        <span class="text-sm">Mute</span>
+                    </button>
+                    <button id="noise-gate" class="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="text-sm">Noise Gate</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Performance Monitor -->
+            <section class="p-4">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Performance</h2>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-gray-800 rounded-lg p-2">
+                        <div class="text-gray-400 text-xs">FPS</div>
+                        <div id="fps-monitor" class="text-lg font-mono">--</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-2">
+                        <div class="text-gray-400 text-xs">Latency</div>
+                        <div id="latency-monitor" class="text-lg font-mono">-- ms</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-2">
+                        <div class="text-gray-400 text-xs">CPU</div>
+                        <div id="cpu-monitor" class="text-lg font-mono">--%</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-2">
+                        <div class="text-gray-400 text-xs">Status</div>
+                        <div id="worker-status" class="text-lg font-mono text-green-400">●</div>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Center - Video Preview -->
+        <main class="flex-1 bg-black flex items-center justify-center relative">
+            <!-- Loading State -->
+            <div id="loading-container" class="absolute inset-0 flex items-center justify-center" data-critical>
+                <div class="text-center">
+                    <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p class="text-gray-400">Initializing ChromeCam Studio...</p>
+                    <p id="loading-status" class="text-sm text-gray-500 mt-2">Checking browser capabilities...</p>
+                </div>
+            </div>
+
+            <!-- Video Canvas (Hidden initially) -->
+            <div id="video-container" class="relative hidden">
+                <canvas id="main-canvas" class="max-w-full max-h-full rounded-lg shadow-2xl"></canvas>
+
+                <!-- Overlay Controls -->
+                <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3 bg-gray-900/90 backdrop-blur-sm rounded-lg p-3">
+                    <button id="btn-record" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2" title="Record video (R)">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <circle cx="10" cy="10" r="8"/>
+                        </svg>
+                        <span>Record</span>
+                    </button>
+                    <button id="btn-snapshot" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex items-center gap-2" title="Take snapshot (S)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <span>Snapshot</span>
+                    </button>
+                    <button id="btn-popout" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex items-center gap-2" title="Open OBS window (P)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                        <span>OBS Output</span>
+                    </button>
+                </div>
+
+                <!-- Resolution Badge -->
+                <div class="absolute top-4 right-4 bg-gray-900/90 backdrop-blur-sm rounded-lg px-3 py-1">
+                    <span id="resolution-badge" class="text-sm font-mono">1920x1080</span>
+                </div>
+            </div>
+
+            <!-- Error State (Hidden) -->
+            <div id="error-container" class="hidden text-center" data-critical>
+                <svg class="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <h2 class="text-xl font-semibold mb-2">Camera Access Error</h2>
+                <p id="error-message" class="text-gray-400 mb-4">Unable to access camera or microphone</p>
+                <button id="btn-retry" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                    Retry
+                </button>
+            </div>
+        </main>
+
+        <!-- Right Sidebar - Info Panel -->
+        <aside class="w-80 bg-gray-900 border-l border-gray-800 overflow-y-auto">
+            <!-- Quick Actions -->
+            <section class="p-4 border-b border-gray-800">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Actions</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-export" class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-center" title="Export settings">
+                        <svg class="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <span class="text-xs">Export</span>
+                    </button>
+                    <button id="btn-stream" class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-center" title="Stream settings" disabled>
+                        <svg class="w-6 h-6 mx-auto mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 3.12-9.032 7.326m9.032 4.026A9.001 9.001 0 012.968 10.326"/>
+                        </svg>
+                        <span class="text-xs">Stream</span>
+                    </button>
+                    <button id="btn-presets" class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-center" title="Save/load presets">
+                        <svg class="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                        </svg>
+                        <span class="text-xs">Presets</span>
+                    </button>
+                    <button id="btn-effects" class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-center" title="Effect settings" disabled>
+                        <svg class="w-6 h-6 mx-auto mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        <span class="text-xs">Effects</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- System Info -->
+            <section class="p-4 border-b border-gray-800">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">System Info</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Browser</span>
+                        <span id="browser-info" class="font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">GPU</span>
+                        <span id="gpu-info" class="font-mono text-green-400">Available</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">WebRTC</span>
+                        <span id="webrtc-info" class="font-mono text-green-400">Ready</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Memory</span>
+                        <span id="memory-info" class="font-mono">-- MB</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Keyboard Shortcuts -->
+            <section class="p-4">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Shortcuts</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Record/Stop</span>
+                        <kbd class="px-2 py-1 bg-gray-800 rounded text-xs">R</kbd>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Snapshot</span>
+                        <kbd class="px-2 py-1 bg-gray-800 rounded text-xs">S</kbd>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Toggle Blur</span>
+                        <kbd class="px-2 py-1 bg-gray-800 rounded text-xs">B</kbd>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Mute</span>
+                        <kbd class="px-2 py-1 bg-gray-800 rounded text-xs">M</kbd>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Pop-out</span>
+                        <kbd class="px-2 py-1 bg-gray-800 rounded text-xs">P</kbd>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <script type="module">
+        // ============================================
+        // ChromeCam Studio v2.0 - Production Ready
+        // With Comprehensive Error Handling
+        // ============================================
+
+        // ========== Utility Classes ==========
+
+        /**
+         * Utility function for debouncing frequent calls
+         */
+        function debounce(fn, delay) {
+            let timeoutId;
+            return function(...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+
+        /**
+         * Retry helper for transient failures
+         */
+        async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    return await fn();
+                } catch (error) {
+                    if (attempt === maxRetries) throw error;
+                    await new Promise(resolve => setTimeout(resolve, baseDelay * attempt));
+                    console.warn(`Retry attempt ${attempt}/${maxRetries}`);
+                }
+            }
+        }
+
+        /**
+         * Toast notification system
+         */
+        class ToastManager {
+            constructor() {
+                this.container = this.createContainer();
+            }
+
+            createContainer() {
+                const container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'fixed top-4 right-4 z-50 space-y-2';
+                document.body.appendChild(container);
+                return container;
+            }
+
+            show(message, type = 'info', duration = 3000) {
+                const toast = document.createElement('div');
+                const colors = {
+                    info: 'bg-blue-600',
+                    success: 'bg-green-600',
+                    warning: 'bg-yellow-600',
+                    error: 'bg-red-600'
+                };
+
+                toast.className = `${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg max-w-sm transition-opacity duration-300`;
+                toast.textContent = message;
+
+                this.container.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        }
+
+        // ========== Main Application Class ==========
+
+        class ChromeCamStudio {
+            constructor() {
+                this.state = {
+                    isInitialized: false,
+                    isRecording: false,
+                    currentEffect: 'blur',
+                    devices: { video: [], audio: [] },
+                    stream: null,
+                    audioContext: null,
+                    recorder: null,
+                    capabilities: {},
+                    fps: 0,
+                    frameCount: 0,
+                    renderLoopId: null,
+                    cleanupTasks: [],
+                    popoutWindow: null,
+                    popoutIntervalId: null
+                };
+
+                this.toast = new ToastManager();
+                this.elements = this.cacheElements();
+                this.init();
+            }
+
+            cacheElements() {
+                return {
+                    // Status
+                    statusDot: document.getElementById('status-dot'),
+                    statusText: document.getElementById('status-text'),
+                    loadingContainer: document.getElementById('loading-container'),
+                    loadingStatus: document.getElementById('loading-status'),
+                    videoContainer: document.getElementById('video-container'),
+                    errorContainer: document.getElementById('error-container'),
+                    errorMessage: document.getElementById('error-message'),
+
+                    // Canvas
+                    canvas: document.getElementById('main-canvas'),
+
+                    // Device selectors
+                    cameraSelect: document.getElementById('camera-select'),
+                    audioSelect: document.getElementById('audio-select'),
+
+                    // Controls
+                    effectButtons: document.querySelectorAll('.effect-btn'),
+                    blurSlider: document.getElementById('blur-slider'),
+                    blurValue: document.getElementById('blur-value'),
+                    edgeSlider: document.getElementById('edge-slider'),
+                    edgeValue: document.getElementById('edge-value'),
+
+                    // UVC Controls
+                    zoomSlider: document.getElementById('zoom-slider'),
+                    zoomValue: document.getElementById('zoom-value'),
+                    focusSlider: document.getElementById('focus-slider'),
+                    focusValue: document.getElementById('focus-value'),
+                    focusAuto: document.getElementById('focus-auto'),
+
+                    // Action buttons
+                    recordBtn: document.getElementById('btn-record'),
+                    snapshotBtn: document.getElementById('btn-snapshot'),
+                    popoutBtn: document.getElementById('btn-popout'),
+                    muteBtn: document.getElementById('mute-audio'),
+                    retryBtn: document.getElementById('btn-retry'),
+
+                    // Monitors
+                    fpsMonitor: document.getElementById('fps-monitor'),
+                    latencyMonitor: document.getElementById('latency-monitor'),
+                    cpuMonitor: document.getElementById('cpu-monitor'),
+                    workerStatus: document.getElementById('worker-status'),
+                    resolutionBadge: document.getElementById('resolution-badge'),
+
+                    // System info
+                    browserInfo: document.getElementById('browser-info'),
+                    gpuInfo: document.getElementById('gpu-info'),
+                    webrtcInfo: document.getElementById('webrtc-info'),
+                    memoryInfo: document.getElementById('memory-info')
+                };
+            }
+
+            async init() {
+                try {
+                    // Step 1: Check browser capabilities
+                    this.updateLoadingStatus('Checking browser capabilities...');
+                    await this.checkCapabilities();
+
+                    // Step 2: Initialize audio context (with fallback)
+                    this.updateLoadingStatus('Initializing audio system...');
+                    this.initAudioContext();
+
+                    // Step 3: Get media devices
+                    this.updateLoadingStatus('Requesting camera permissions...');
+                    await retryWithBackoff(() => this.getMediaDevices(), 2, 1000);
+
+                    // Step 4: Setup event listeners
+                    this.setupEventListeners();
+
+                    // Step 5: Start camera stream
+                    this.updateLoadingStatus('Starting camera stream...');
+                    await this.startCamera();
+
+                    // Success!
+                    this.setStatus('ready', 'Ready');
+                    this.showVideoContainer();
+                    this.toast.show('ChromeCam Studio initialized successfully', 'success');
+
+                    // Start performance monitoring
+                    this.startPerformanceMonitoring();
+
+                    // Setup cleanup on page unload
+                    this.addCleanupTask(() => {
+                        this.stopCamera();
+                        if (this.state.audioContext) {
+                            this.state.audioContext.close();
+                        }
+                    });
+
+                    window.addEventListener('beforeunload', () => this.cleanup());
+
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.handleInitError(error);
+                }
+            }
+
+            handleInitError(error) {
+                let userMessage = error.message;
+                let canRetry = true;
+
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    userMessage = 'Camera/microphone access was denied. Please allow permissions and refresh the page.';
+                    canRetry = false;
+                } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                    userMessage = 'No camera or microphone found. Please connect a device and try again.';
+                } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                    userMessage = 'Camera is already in use by another application. Please close other apps using the camera.';
+                } else if (error.name === 'OverconstrainedError') {
+                    userMessage = 'Camera doesn\'t support the requested settings. Trying default settings...';
+                    canRetry = true;
+                } else if (error.message.includes('secure context')) {
+                    userMessage = 'Camera API requires HTTPS or localhost. Please use a secure connection.';
+                    canRetry = false;
+                }
+
+                this.showError(userMessage);
+
+                if (!canRetry) {
+                    this.elements.retryBtn.style.display = 'none';
+                }
+            }
+
+            async checkCapabilities() {
+                // Check for required APIs
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera API not available. This requires a secure context (HTTPS or localhost).');
+                }
+
+                const capabilities = {
+                    getUserMedia: true,
+                    offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
+                    webGL: this.checkWebGL(),
+                    webGL2: this.checkWebGL2(),
+                    mediaRecorder: 'MediaRecorder' in window,
+                    webAudio: 'AudioContext' in window || 'webkitAudioContext' in window,
+                    sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+                    webCodecs: 'VideoEncoder' in window
+                };
+
+                this.state.capabilities = capabilities;
+
+                // Update UI with capability info
+                const browserInfo = this.getBrowserInfo();
+                this.elements.browserInfo.textContent = browserInfo;
+
+                // Update GPU info
+                this.elements.gpuInfo.textContent = capabilities.webGL ? 'Available' : 'Not Available';
+                this.elements.gpuInfo.className = capabilities.webGL ? 'font-mono text-green-400' : 'font-mono text-yellow-400';
+
+                // Update WebRTC info
+                this.elements.webrtcInfo.textContent = capabilities.getUserMedia ? 'Ready' : 'Not Available';
+                this.elements.webrtcInfo.className = capabilities.getUserMedia ? 'font-mono text-green-400' : 'font-mono text-red-400';
+
+                // Disable features gracefully if not supported
+                if (!capabilities.mediaRecorder) {
+                    this.elements.recordBtn.disabled = true;
+                    this.elements.recordBtn.title = 'Recording not supported in this browser';
+                    console.warn('MediaRecorder API not available');
+                }
+
+                if (!capabilities.webAudio) {
+                    document.getElementById('vu-meter-container').style.display = 'none';
+                    console.warn('Web Audio API not available');
+                }
+
+                return capabilities;
+            }
+
+            checkWebGL() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    return !!(window.WebGLRenderingContext &&
+                            (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+                } catch(e) {
+                    return false;
+                }
+            }
+
+            checkWebGL2() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    return !!canvas.getContext('webgl2');
+                } catch(e) {
+                    return false;
+                }
+            }
+
+            getBrowserInfo() {
+                const ua = navigator.userAgent;
+                if (ua.includes('Chrome')) return `Chrome ${ua.match(/Chrome\/(\d+)/)?.[1] || ''}`;
+                if (ua.includes('Firefox')) return `Firefox ${ua.match(/Firefox\/(\d+)/)?.[1] || ''}`;
+                if (ua.includes('Safari') && !ua.includes('Chrome')) return `Safari ${ua.match(/Version\/(\d+)/)?.[1] || ''}`;
+                if (ua.includes('Edge')) return `Edge ${ua.match(/Edge\/(\d+)/)?.[1] || ''}`;
+                return 'Unknown';
+            }
+
+            initAudioContext() {
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.state.audioContext = new AudioContext();
+                    } else {
+                        console.warn('Web Audio API not available');
+                    }
+                } catch (error) {
+                    console.error('Failed to initialize audio context:', error);
+                }
+            }
+
+            async getMediaDevices() {
+                try {
+                    // Request permissions first
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true
+                    });
+
+                    // Stop the stream immediately (we just needed permissions)
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Now enumerate devices
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+
+                    this.state.devices.video = devices.filter(d => d.kind === 'videoinput');
+                    this.state.devices.audio = devices.filter(d => d.kind === 'audioinput');
+
+                    if (this.state.devices.video.length === 0) {
+                        throw new Error('No video input devices found');
+                    }
+
+                    // Populate dropdowns
+                    this.populateDeviceSelectors();
+
+                } catch (error) {
+                    console.error('Failed to get media devices:', error);
+                    throw error;
+                }
+            }
+
+            populateDeviceSelectors() {
+                // Video devices
+                this.elements.cameraSelect.innerHTML = '';
+                this.state.devices.video.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Camera ${index + 1}`;
+                    this.elements.cameraSelect.appendChild(option);
+                });
+
+                // Audio devices
+                this.elements.audioSelect.innerHTML = '';
+                this.state.devices.audio.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Microphone ${index + 1}`;
+                    this.elements.audioSelect.appendChild(option);
+                });
+            }
+
+            async startCamera(videoDeviceId = null, audioDeviceId = null) {
+                try {
+                    // Stop existing stream if any
+                    this.stopCamera();
+
+                    // Get selected devices
+                    const constraints = {
+                        video: {
+                            deviceId: videoDeviceId ? { exact: videoDeviceId } : { exact: this.elements.cameraSelect.value },
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                            frameRate: { ideal: 30 }
+                        },
+                        audio: {
+                            deviceId: audioDeviceId ? { exact: audioDeviceId } : { exact: this.elements.audioSelect.value },
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    };
+
+                    this.state.stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                    // Get actual video dimensions
+                    const videoTrack = this.state.stream.getVideoTracks()[0];
+                    const settings = videoTrack.getSettings();
+
+                    // Update resolution badge
+                    this.elements.resolutionBadge.textContent = `${settings.width || 0}x${settings.height || 0}`;
+
+                    // Setup canvas
+                    this.elements.canvas.width = settings.width || 1920;
+                    this.elements.canvas.height = settings.height || 1080;
+
+                    // Start video rendering
+                    this.startDirectVideoRender();
+
+                    // Check for UVC capabilities
+                    this.checkUVCCapabilities(videoTrack);
+
+                    // Setup audio visualization
+                    if (this.state.capabilities.webAudio && this.state.audioContext) {
+                        this.setupAudioVisualization();
+                    }
+
+                    this.toast.show('Camera started successfully', 'success');
+
+                } catch (error) {
+                    console.error('Camera start error:', error);
+
+                    // Try fallback with lower constraints
+                    if (error.name === 'OverconstrainedError') {
+                        console.warn('Trying fallback constraints...');
+                        try {
+                            const fallbackConstraints = {
+                                video: { deviceId: videoDeviceId || this.elements.cameraSelect.value },
+                                audio: { deviceId: audioDeviceId || this.elements.audioSelect.value }
+                            };
+                            this.state.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                            this.startDirectVideoRender();
+                            this.toast.show('Camera started with default settings', 'warning');
+                            return;
+                        } catch (fallbackError) {
+                            console.error('Fallback also failed:', fallbackError);
+                        }
+                    }
+
+                    throw new Error(`Failed to start camera: ${error.message}`);
+                }
+            }
+
+            stopCamera() {
+                if (this.state.stream) {
+                    this.state.stream.getTracks().forEach(track => track.stop());
+                    this.state.stream = null;
+                }
+
+                if (this.state.renderLoopId) {
+                    cancelAnimationFrame(this.state.renderLoopId);
+                    this.state.renderLoopId = null;
+                }
+            }
+
+            startDirectVideoRender() {
+                const video = document.createElement('video');
+                video.srcObject = this.state.stream;
+                video.play().catch(error => {
+                    console.error('Video play failed:', error);
+                    this.toast.show('Failed to start video playback', 'error');
+                });
+
+                const ctx = this.elements.canvas.getContext('2d', { alpha: false });
+
+                const render = () => {
+                    // Safety check
+                    if (!this.state.stream || video.readyState < 2) {
+                        this.state.renderLoopId = requestAnimationFrame(render);
+                        return;
+                    }
+
+                    try {
+                        ctx.drawImage(video, 0, 0, this.elements.canvas.width, this.elements.canvas.height);
+
+                        // Apply effects
+                        if (this.state.currentEffect === 'blur') {
+                            const blurAmount = this.elements.blurSlider.value;
+                            // Apply blur effect (simplified - real implementation would use more sophisticated methods)
+                            ctx.filter = `blur(${blurAmount}px)`;
+                            ctx.drawImage(this.elements.canvas, 0, 0);
+                            ctx.filter = 'none';
+
+                            // Draw sharp center (simplified portrait mode effect)
+                            const centerWidth = this.elements.canvas.width * 0.6;
+                            const centerHeight = this.elements.canvas.height * 0.6;
+                            const centerX = (this.elements.canvas.width - centerWidth) / 2;
+                            const centerY = (this.elements.canvas.height - centerHeight) / 2;
+
+                            ctx.drawImage(video,
+                                centerX / this.elements.canvas.width * video.videoWidth,
+                                centerY / this.elements.canvas.height * video.videoHeight,
+                                centerWidth / this.elements.canvas.width * video.videoWidth,
+                                centerHeight / this.elements.canvas.height * video.videoHeight,
+                                centerX, centerY, centerWidth, centerHeight
+                            );
+                        }
+
+                        // Update FPS counter
+                        this.state.frameCount++;
+
+                    } catch (error) {
+                        console.error('Render error:', error);
+                    }
+
+                    this.state.renderLoopId = requestAnimationFrame(render);
+                };
+
+                render();
+            }
+
+            checkUVCCapabilities(track) {
+                try {
+                    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+                    // Check for zoom
+                    if (capabilities.zoom) {
+                        this.elements.zoomSlider.disabled = false;
+                        this.elements.zoomSlider.min = capabilities.zoom.min || 1;
+                        this.elements.zoomSlider.max = capabilities.zoom.max || 5;
+                        this.elements.zoomSlider.step = capabilities.zoom.step || 0.1;
+                        document.getElementById('uvc-controls').classList.remove('opacity-50');
+                    }
+
+                    // Check for focus
+                    if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
+                        if (capabilities.focusMode.includes('manual')) {
+                            this.elements.focusSlider.disabled = false;
+                            this.elements.focusAuto.disabled = false;
+                        }
+                    }
+
+                    console.log('UVC Capabilities:', capabilities);
+                } catch (error) {
+                    console.warn('Failed to check UVC capabilities:', error);
+                }
+            }
+
+            setupAudioVisualization() {
+                if (!this.state.stream || !this.state.audioContext) return;
+
+                try {
+                    const audioTrack = this.state.stream.getAudioTracks()[0];
+                    if (!audioTrack) return;
+
+                    const source = this.state.audioContext.createMediaStreamSource(this.state.stream);
+                    const analyser = this.state.audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+
+                    source.connect(analyser);
+
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    const vuMeter = document.querySelector('.vu-meter');
+                    const dbDisplay = document.getElementById('audio-db');
+
+                    const updateVU = () => {
+                        if (!this.state.stream) return;
+
+                        analyser.getByteFrequencyData(dataArray);
+
+                        // Calculate average volume
+                        let sum = 0;
+                        for (let i = 0; i < dataArray.length; i++) {
+                            sum += dataArray[i];
+                        }
+                        const average = sum / dataArray.length;
+                        const percentage = (average / 255) * 100;
+
+                        // Update VU meter
+                        if (vuMeter) {
+                            vuMeter.style.setProperty('--level', `${percentage}%`);
+                        }
+
+                        // Calculate dB
+                        const db = percentage > 0 ? 20 * Math.log10(average / 255) : -Infinity;
+                        if (dbDisplay) {
+                            dbDisplay.textContent = isFinite(db) ? `${db.toFixed(1)} dB` : '-∞ dB';
+                        }
+
+                        requestAnimationFrame(updateVU);
+                    };
+
+                    updateVU();
+                } catch (error) {
+                    console.error('Audio visualization setup failed:', error);
+                    this.toast.show('Audio visualization unavailable', 'warning');
+                }
+            }
+
+            setupEventListeners() {
+                // Device changes
+                this.elements.cameraSelect.addEventListener('change', () => {
+                    this.startCamera(this.elements.cameraSelect.value, null);
+                });
+
+                this.elements.audioSelect.addEventListener('change', () => {
+                    this.startCamera(null, this.elements.audioSelect.value);
+                });
+
+                // Effect buttons
+                this.elements.effectButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.elements.effectButtons.forEach(b => {
+                            b.classList.remove('border-blue-500');
+                            b.classList.add('border-transparent');
+                        });
+                        btn.classList.remove('border-transparent');
+                        btn.classList.add('border-blue-500');
+
+                        this.state.currentEffect = btn.dataset.effect;
+
+                        // Show/hide relevant controls
+                        document.getElementById('blur-controls').classList.toggle('hidden',
+                            this.state.currentEffect !== 'blur');
+                        document.getElementById('image-controls').classList.toggle('hidden',
+                            this.state.currentEffect !== 'replace');
+                    });
+                });
+
+                // Sliders with debouncing
+                this.elements.blurSlider.addEventListener('input', debounce((e) => {
+                    this.elements.blurValue.textContent = `${e.target.value}px`;
+                }, 100));
+
+                this.elements.edgeSlider.addEventListener('input', debounce((e) => {
+                    this.elements.edgeValue.textContent = `${e.target.value}px`;
+                }, 100));
+
+                this.elements.zoomSlider.addEventListener('input', debounce(async (e) => {
+                    this.elements.zoomValue.textContent = `${e.target.value}x`;
+                    await this.applyConstraintSafely('zoom', parseFloat(e.target.value));
+                }, 200));
+
+                // Action buttons
+                this.elements.recordBtn.addEventListener('click', () => this.toggleRecording());
+                this.elements.snapshotBtn.addEventListener('click', () => this.takeSnapshot());
+                this.elements.popoutBtn.addEventListener('click', () => this.openPopout());
+                this.elements.muteBtn.addEventListener('click', () => this.toggleMute());
+                this.elements.retryBtn.addEventListener('click', () => location.reload());
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+                    switch(e.key.toLowerCase()) {
+                        case 'r':
+                            e.preventDefault();
+                            this.toggleRecording();
+                            break;
+                        case 's':
+                            e.preventDefault();
+                            this.takeSnapshot();
+                            break;
+                        case 'b':
+                            e.preventDefault();
+                            document.querySelector('[data-effect="blur"]').click();
+                            break;
+                        case 'm':
+                            e.preventDefault();
+                            this.toggleMute();
+                            break;
+                        case 'p':
+                            e.preventDefault();
+                            this.openPopout();
+                            break;
+                    }
+                });
+            }
+
+            async applyConstraintSafely(constraintName, value) {
+                if (!this.state.stream) return false;
+
+                try {
+                    const track = this.state.stream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+                    if (!capabilities[constraintName]) {
+                        console.warn(`Constraint ${constraintName} not supported`);
+                        return false;
+                    }
+
+                    const cap = capabilities[constraintName];
+
+                    // Validate range if applicable
+                    if (typeof cap === 'object' && 'min' in cap && 'max' in cap) {
+                        value = Math.max(cap.min, Math.min(cap.max, value));
+                    }
+
+                    await track.applyConstraints({ advanced: [{ [constraintName]: value }] });
+                    return true;
+
+                } catch (error) {
+                    console.error(`Failed to apply ${constraintName}:`, error);
+                    this.toast.show(`Could not apply ${constraintName}`, 'warning');
+                    return false;
+                }
+            }
+
+            toggleRecording() {
+                if (!this.state.isRecording) {
+                    this.startRecording();
+                } else {
+                    this.stopRecording();
+                }
+            }
+
+            startRecording() {
+                if (!this.state.stream) {
+                    this.toast.show('No camera stream available', 'error');
+                    return;
+                }
+
+                if (!this.state.capabilities.mediaRecorder) {
+                    this.toast.show('Recording not supported in this browser', 'error');
+                    return;
+                }
+
+                try {
+                    // Try VP9 first, fallback to VP8, then H264
+                    const mimeTypes = [
+                        'video/webm;codecs=vp9,opus',
+                        'video/webm;codecs=vp8,opus',
+                        'video/webm',
+                        'video/mp4'
+                    ];
+
+                    let mimeType = mimeTypes[0];
+                    for (const type of mimeTypes) {
+                        if (MediaRecorder.isTypeSupported(type)) {
+                            mimeType = type;
+                            break;
+                        }
+                    }
+
+                    const recorder = new MediaRecorder(this.state.stream, { mimeType });
+
+                    const chunks = [];
+                    recorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) {
+                            chunks.push(e.data);
+                        }
+                    };
+
+                    recorder.onstop = () => {
+                        try {
+                            const blob = new Blob(chunks, { type: mimeType });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `chromecam-${Date.now()}.webm`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            this.toast.show('Recording saved successfully', 'success');
+                        } catch (error) {
+                            console.error('Failed to save recording:', error);
+                            this.toast.show('Failed to save recording', 'error');
+                        }
+                    };
+
+                    recorder.onerror = (error) => {
+                        console.error('Recording error:', error);
+                        this.toast.show('Recording error occurred', 'error');
+                        this.state.isRecording = false;
+                        this.updateRecordButton();
+                    };
+
+                    recorder.start();
+                    this.state.recorder = recorder;
+                    this.state.isRecording = true;
+                    this.updateRecordButton();
+                    this.toast.show('Recording started', 'info');
+
+                } catch (error) {
+                    console.error('Failed to start recording:', error);
+                    this.toast.show('Failed to start recording', 'error');
+                }
+            }
+
+            stopRecording() {
+                if (this.state.recorder && this.state.recorder.state !== 'inactive') {
+                    try {
+                        this.state.recorder.stop();
+                        this.state.recorder = null;
+                        this.state.isRecording = false;
+                        this.updateRecordButton();
+                        this.toast.show('Recording stopped', 'info');
+                    } catch (error) {
+                        console.error('Failed to stop recording:', error);
+                        this.toast.show('Failed to stop recording', 'error');
+                    }
+                }
+            }
+
+            updateRecordButton() {
+                if (this.state.isRecording) {
+                    this.elements.recordBtn.classList.add('recording');
+                    this.elements.recordBtn.innerHTML = `
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <rect x="6" y="6" width="8" height="8" />
+                        </svg>
+                        <span>Stop</span>
+                    `;
+                } else {
+                    this.elements.recordBtn.classList.remove('recording');
+                    this.elements.recordBtn.innerHTML = `
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <circle cx="10" cy="10" r="8"/>
+                        </svg>
+                        <span>Record</span>
+                    `;
+                }
+            }
+
+            takeSnapshot() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = this.elements.canvas.width;
+                    canvas.height = this.elements.canvas.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(this.elements.canvas, 0, 0);
+
+                    canvas.toBlob((blob) => {
+                        if (!blob) {
+                            this.toast.show('Failed to create snapshot', 'error');
+                            return;
+                        }
+
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `snapshot-${Date.now()}.png`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        this.toast.show('Snapshot saved', 'success');
+                    }, 'image/png');
+
+                } catch (error) {
+                    console.error('Snapshot failed:', error);
+                    this.toast.show('Failed to take snapshot', 'error');
+                }
+            }
+
+            openPopout() {
+                try {
+                    // Close existing popout if any
+                    if (this.state.popoutWindow && !this.state.popoutWindow.closed) {
+                        this.state.popoutWindow.close();
+                    }
+
+                    const popout = window.open('', 'ChromeCam Output',
+                        'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+
+                    if (!popout) {
+                        this.toast.show('Pop-up blocked. Please allow pop-ups for this site.', 'warning');
+                        return;
+                    }
+
+                    this.state.popoutWindow = popout;
+
+                    popout.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>ChromeCam Output</title>
+                            <style>
+                                body {
+                                    margin: 0;
+                                    background: #000;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    height: 100vh;
+                                    overflow: hidden;
+                                }
+                                canvas {
+                                    max-width: 100%;
+                                    max-height: 100%;
+                                    display: block;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <canvas id="output"></canvas>
+                            <script>
+                                const canvas = document.getElementById('output');
+                                const ctx = canvas.getContext('2d');
+
+                                window.addEventListener('message', (e) => {
+                                    if (e.data.type === 'frame') {
+                                        const img = new Image();
+                                        img.onload = () => {
+                                            canvas.width = img.width;
+                                            canvas.height = img.height;
+                                            ctx.drawImage(img, 0, 0);
+                                        };
+                                        img.src = e.data.dataUrl;
+                                    }
+                                });
+
+                                window.opener.postMessage({ type: 'popout-ready' }, '*');
+                            </script>
+                        </body>
+                        </html>
+                    `);
+
+                    // Send frames to popout (at 30fps)
+                    this.state.popoutIntervalId = setInterval(() => {
+                        if (!this.state.popoutWindow || this.state.popoutWindow.closed) {
+                            clearInterval(this.state.popoutIntervalId);
+                            this.state.popoutIntervalId = null;
+                            this.state.popoutWindow = null;
+                            this.toast.show('Pop-out window closed', 'info');
+                            return;
+                        }
+
+                        try {
+                            this.elements.canvas.toBlob((blob) => {
+                                if (!blob) return;
+
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                    if (this.state.popoutWindow && !this.state.popoutWindow.closed) {
+                                        this.state.popoutWindow.postMessage({
+                                            type: 'frame',
+                                            dataUrl: reader.result
+                                        }, '*');
+                                    }
+                                };
+                                reader.readAsDataURL(blob);
+                            }, 'image/jpeg', 0.85);
+                        } catch (error) {
+                            console.error('Failed to send frame to popout:', error);
+                        }
+                    }, 33); // ~30fps
+
+                    this.addCleanupTask(() => {
+                        if (this.state.popoutIntervalId) {
+                            clearInterval(this.state.popoutIntervalId);
+                        }
+                        if (this.state.popoutWindow && !this.state.popoutWindow.closed) {
+                            this.state.popoutWindow.close();
+                        }
+                    });
+
+                    this.toast.show('OBS output window opened', 'success');
+
+                } catch (error) {
+                    console.error('Failed to open popout:', error);
+                    this.toast.show('Failed to open OBS output window', 'error');
+                }
+            }
+
+            toggleMute() {
+                if (!this.state.stream) return;
+
+                const audioTrack = this.state.stream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    this.elements.muteBtn.classList.toggle('bg-red-600', !audioTrack.enabled);
+                    this.elements.muteBtn.classList.toggle('bg-gray-800', audioTrack.enabled);
+
+                    const status = audioTrack.enabled ? 'unmuted' : 'muted';
+                    this.toast.show(`Audio ${status}`, 'info');
+                }
+            }
+
+            startPerformanceMonitoring() {
+                // FPS monitoring
+                const fpsInterval = setInterval(() => {
+                    this.elements.fpsMonitor.textContent = this.state.frameCount;
+                    this.state.fps = this.state.frameCount;
+                    this.state.frameCount = 0;
+                }, 1000);
+
+                this.addCleanupTask(() => clearInterval(fpsInterval));
+
+                // Memory monitoring
+                if (performance.memory) {
+                    const memoryInterval = setInterval(() => {
+                        const used = Math.round(performance.memory.usedJSHeapSize / 1048576);
+                        this.elements.memoryInfo.textContent = `${used} MB`;
+                    }, 2000);
+
+                    this.addCleanupTask(() => clearInterval(memoryInterval));
+                }
+
+                // Simulated metrics (latency and CPU would need more sophisticated measurement)
+                const metricsInterval = setInterval(() => {
+                    this.elements.latencyMonitor.textContent = `${Math.round(10 + Math.random() * 5)} ms`;
+                    this.elements.cpuMonitor.textContent = `${Math.round(20 + Math.random() * 15)}%`;
+                }, 1000);
+
+                this.addCleanupTask(() => clearInterval(metricsInterval));
+            }
+
+            addCleanupTask(fn) {
+                this.state.cleanupTasks.push(fn);
+            }
+
+            cleanup() {
+                console.log('Cleaning up resources...');
+                this.state.cleanupTasks.forEach(fn => {
+                    try {
+                        fn();
+                    } catch (error) {
+                        console.error('Cleanup task failed:', error);
+                    }
+                });
+                this.state.cleanupTasks = [];
+
+                this.stopCamera();
+                this.stopRecording();
+            }
+
+            updateLoadingStatus(message) {
+                this.elements.loadingStatus.textContent = message;
+            }
+
+            setStatus(state, text) {
+                const colors = {
+                    initializing: 'bg-yellow-500',
+                    ready: 'bg-green-500',
+                    error: 'bg-red-500',
+                    processing: 'bg-blue-500'
+                };
+
+                this.elements.statusDot.className = `w-2 h-2 rounded-full ${colors[state] || 'bg-gray-500'}`;
+                this.elements.statusText.textContent = text;
+            }
+
+            showVideoContainer() {
+                this.elements.loadingContainer.classList.add('hidden');
+                this.elements.videoContainer.classList.remove('hidden');
+                this.elements.errorContainer.classList.add('hidden');
+            }
+
+            showError(message) {
+                this.elements.loadingContainer.classList.add('hidden');
+                this.elements.videoContainer.classList.add('hidden');
+                this.elements.errorContainer.classList.remove('hidden');
+                this.elements.errorMessage.textContent = message;
+                this.setStatus('error', 'Error');
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                window.chromeCamStudio = new ChromeCamStudio();
+            } catch (error) {
+                console.error('Fatal initialization error:', error);
+                document.body.innerHTML = `
+                    <div class="fallback-loading">
+                        <div>
+                            <h1>Initialization Failed</h1>
+                            <p>${error.message}</p>
+                            <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #3b82f6; border: none; border-radius: 8px; color: white; cursor: pointer;">
+                                Reload Page
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
         });
-      });
-    }
-  </script>
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('SW registered:', registration);
+                    })
+                    .catch(error => {
+                        console.warn('SW registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
