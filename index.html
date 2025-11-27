@@ -1269,10 +1269,10 @@
                                     max-height: 100%;
                                     display: block;
                                 }
-                            </style>
-                        </head>
+                            <\/style>
+                        <\/head>
                         <body>
-                            <canvas id="output"></canvas>
+                            <canvas id="output"><\/canvas>
                             <script>
                                 const canvas = document.getElementById('output');
                                 const ctx = canvas.getContext('2d');
@@ -1290,9 +1290,9 @@
                                 });
 
                                 window.opener.postMessage({ type: 'popout-ready' }, '*');
-                            </script>
-                        </body>
-                        </html>
+                            <\/script>
+                        <\/body>
+                        <\/html>
                     `);
 
                     // Send frames to popout (at 30fps)
